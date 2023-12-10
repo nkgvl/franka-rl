@@ -3,7 +3,7 @@ round_peg_hole_4mm:
         urdf_path: 'industreal_round_peg_4mm'
         diameter: 0.003988
         length: 0.050
-        density: 8000.0 
+        density: 8000.0
         friction: 1.0
         grasp_offset: 0.04
         plug_width: 0.004

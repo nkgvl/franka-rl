@@ -747,7 +747,7 @@
         <mesh filename="../meshes/foot.dae" scale="1.0 1.0     1.0"/>
       </geometry>
     </visual>
-    <!-- Foot collision --> 
+    <!-- Foot collision -->
     <collision>
       <origin xyz="0 0 0.0225"/>
       <geometry>
@@ -1199,7 +1199,7 @@
         <mesh filename="../meshes/foot.dae" scale="1.0 1.0     1.0"/>
       </geometry>
     </visual>
-    <!-- Foot collision -->  
+    <!-- Foot collision -->
     <collision>
       <origin xyz="0 -0.0 0.0225"/>
       <geometry>
@@ -1426,7 +1426,7 @@
         <mesh filename="../meshes/foot.dae" scale="1.0 1.0     1.0"/>
       </geometry>
     </visual>
-    <!-- Foot collision -->   
+    <!-- Foot collision -->
     <collision>
       <origin xyz="0 -0.0 0.0225"/>
       <geometry>
@@ -1461,4 +1461,3 @@
     </inertial>
   </link>
 </robot>
-

@@ -6,15 +6,15 @@
 	</link>
 
 	<joint name = "rail" type = "prismatic">
-    <parent link="world"/>    
-    <child link="arm"/>    
-    <origin xyz="0.0 0.0 0.0"/>    
-    <axis xyz="0 1 0"/>    
-    <limit lower="-2.0" upper="2.0"/>    
-    <dynamics damping="0.0" friction="0.0"/>  
+    <parent link="world"/>
+    <child link="arm"/>
+    <origin xyz="0.0 0.0 0.0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.0" upper="2.0"/>
+    <dynamics damping="0.0" friction="0.0"/>
 	</joint>
 
-	<link name="arm">    
+	<link name="arm">
 	  <collision>
 				<origin xyz="0 2.0 0" rpy="0 0 0"/>
 				<geometry>

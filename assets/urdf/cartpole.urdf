@@ -39,7 +39,7 @@
   <link name="pole">
     <visual>
       <geometry>
-        <box size="0.04 0.06 1.0"/>	
+        <box size="0.04 0.06 1.0"/>
       </geometry>
       <origin xyz="0 0 0.47"/>
       <material name="pole_mat">
@@ -48,7 +48,7 @@
     </visual>
     <collision>
       <geometry>
-        <box size="0.04 0.06 1.0"/>	
+        <box size="0.04 0.06 1.0"/>
       </geometry>
       <origin xyz="0 0 0.47"/>
     </collision>
@@ -73,5 +73,5 @@
     <child link="pole"/>
     <limit effort="1000.0" velocity="8"/>
   </joint>
-  
+
 </robot>

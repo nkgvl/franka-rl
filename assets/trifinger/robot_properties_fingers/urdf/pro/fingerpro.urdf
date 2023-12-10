@@ -246,7 +246,7 @@
   </joint>
   <!--
     Define the global base link and place the finger relative to it.
-    Note: Here I've used the center point of the center piece as the origin 
+    Note: Here I've used the center point of the center piece as the origin
     -->
   <link name="base_link">
     <!-- add inertial to suppress warning -->

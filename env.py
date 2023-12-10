@@ -38,7 +38,7 @@ class FrankaPandaEnv:
         num_envs: int = 36,
         physics_engine: int = gymapi.SIM_PHYSX,
         use_gpu: bool = True,
-        use_gpu_pipeline: bool = True,
+        use_gpu_pipeline: bool = False,
         num_threads: int = 1,
         compute_device_id: int = 0,
         graphics_device_id: int = 0,
@@ -57,6 +57,7 @@ class FrankaPandaEnv:
         self.compute_device_id = compute_device_id
         self.graphics_device_id = graphics_device_id
 
+        self.cube_size = 0.05
         self.create_sim()
 
         if self.sim is None:
@@ -164,6 +165,11 @@ class FrankaPandaEnv:
             self.sim, asset_root, franka_asset_file, asset_options
         )
 
+        # Create cube asset
+        cube_opts = gymapi.AssetOptions()
+        cube_asset = self.gym.create_box(self.sim, *([self.cube_size] * 3), cube_opts)
+        cube_color = gymapi.Vec3(0.6, 0.1, 0.0)
+
         # Set up the env grid
         self.num_envs = num_envs
         spacing = 1.0
@@ -197,14 +203,18 @@ class FrankaPandaEnv:
             else:
                 franka_dof_props["stiffness"][i] = 7000.0
                 franka_dof_props["damping"][i] = 50.0
-            franka_dof_lower_limits.append(franka_dof_props['lower'][i])
-            franka_dof_upper_limits.append(franka_dof_props['upper'][i])
-            _franka_effort_limits.append(franka_dof_props['effort'][i])
+            franka_dof_lower_limits.append(franka_dof_props["lower"][i])
+            franka_dof_upper_limits.append(franka_dof_props["upper"][i])
+            _franka_effort_limits.append(franka_dof_props["effort"][i])
 
         franka_dof_props["effort"][7] = 200
         franka_dof_props["effort"][8] = 200
-        self.franka_dof_lower_limits = to_torch(franka_dof_lower_limits, device=self.device)
-        self.franka_dof_upper_limits = to_torch(franka_dof_upper_limits, device=self.device)
+        self.franka_dof_lower_limits = to_torch(
+            franka_dof_lower_limits, device=self.device
+        )
+        self.franka_dof_upper_limits = to_torch(
+            franka_dof_upper_limits, device=self.device
+        )
         self._franka_effort_limits = to_torch(_franka_effort_limits, device=self.device)
 
         franka_start_pose = gymapi.Transform()
@@ -221,11 +231,27 @@ class FrankaPandaEnv:
 
             # add franka
             franka_handle = self.gym.create_actor(
-                env, franka_asset, franka_start_pose, "franka", i, 2
+                env, franka_asset, franka_start_pose, "franka", i, 0, 0
             )
             self.gym.set_actor_dof_properties(env, franka_handle, franka_dof_props)
 
             self.franka_handles.append(franka_handle)
+
+            # Define start pose for cubes (doesn't really matter since they're get overridden during reset() anyways)
+            cube_start_pose = gymapi.Transform()
+            cube_xy_pos = torch.rand(2) * 0.2
+            cube_start_pose.p = gymapi.Vec3(*cube_xy_pos, 0.0)
+            cube_start_pose.r = gymapi.Quat.from_euler_zyx(
+                0, 0, torch.rand(1) * 2 * torch.pi
+            )
+
+            # Create cube
+            self._cube_id = self.gym.create_actor(
+                env, cube_asset, cube_start_pose, "cube", i, 2, 0
+            )
+            self.gym.set_rigid_body_color(
+                env, self._cube_id, 0, gymapi.MESH_VISUAL, cube_color
+            )
 
     def _refresh(self):
         self.gym.refresh_actor_root_state_tensor(self.sim)
@@ -237,6 +263,11 @@ class FrankaPandaEnv:
         self._update_states()
 
     def _update_states(self):
+        _actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
+        _root_state = gymtorch.wrap_tensor(_actor_root_state_tensor).view(
+            self.num_envs, -1, 13
+        )
+        _cube_state = _root_state[:, self._cube_id, :]
         _dof_state = gymtorch.wrap_tensor(
             self.gym.acquire_dof_state_tensor(self.sim)
         ).view(self.num_envs, -1, 2)
@@ -257,6 +288,10 @@ class FrankaPandaEnv:
                 "eef_vel": _eef_state[:, 7:],
                 "eef_lf_pos": _eef_lf_state[:, :3],
                 "eef_rf_pos": _eef_rf_state[:, :3],
+                # Cubes
+                "cube_quat": _cube_state[:, 3:7],
+                "cube_pos": _cube_state[:, :3],
+                "cube_pos_relative": _cube_state[:, :3] - _eef_state[:, :3],
             }
         )
 

@@ -306,7 +306,7 @@ Center of Mass:
       <inertia ixx="1e-3" ixy="0.0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
     </inertial>
   </link>
-  
+
   <!-- Load Gazebo lib and set the robot namespace -->
   <!-- <gazebo>
       <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
@@ -471,7 +471,7 @@ Center of Mass:
     </collision>
   </link>
   <!-- <joint name="allegro_mount_joint1" type="fixed">
-    
+
     <origin rpy="0 0 0" xyz="-0.00 -0.0 0.0"/>
     <parent link="iiwa7_link_ee"/>
     <child link="allegro_mount"/>
@@ -484,7 +484,7 @@ Center of Mass:
     <child link="palm_link"/>
 
   </joint>
-  
+
   <!-- BASE -->
   <link name="palm_link">
     <inertial>
@@ -525,7 +525,7 @@ Center of Mass:
     <inertial>
       <mass value="0.005"/>
       <origin xyz="0 0 0"/>
-      <inertia ixx="5.1458e-05" iyy="5.1458e-05" izz="6.125e-05" ixy="0" ixz="0" iyz="0"/>	
+      <inertia ixx="5.1458e-05" iyy="5.1458e-05" izz="6.125e-05" ixy="0" ixz="0" iyz="0"/>
     </inertial>
     <visual>
       <geometry>
@@ -545,7 +545,7 @@ Center of Mass:
     <inertial>
       <mass value="0.125164"/>
       <origin xyz="0.027 0 0"/>
-      <inertia ixx="6.39979e-06" iyy="8.88687e-05" izz="9.13751e-05" ixy="-3.26531e-06" ixz="1.23963e-05" iyz="2.07384e-05"/>	
+      <inertia ixx="6.39979e-06" iyy="8.88687e-05" izz="9.13751e-05" ixy="-3.26531e-06" ixz="1.23963e-05" iyz="2.07384e-05"/>
     </inertial>
     <visual>
       <geometry>
@@ -565,7 +565,7 @@ Center of Mass:
     <inertial>
       <mass value="0.131691"/>
       <origin xyz="0.039 0 0"/>
-      <inertia ixx="7.04217e-05" iyy="3.95744e-05" izz="6.61125e-05" ixy="-9.64342e-05" ixz="5.8796e-05" iyz="-3.62996e-05"/>	
+      <inertia ixx="7.04217e-05" iyy="3.95744e-05" izz="6.61125e-05" ixy="-9.64342e-05" ixz="5.8796e-05" iyz="-3.62996e-05"/>
     </inertial>
     <visual>
       <geometry>
@@ -605,7 +605,7 @@ Center of Mass:
     <inertial>
       <mass value="0.005"/>
       <origin xyz="0 0 0"/>
-      <inertia ixx="5.1458e-05" iyy="5.1458e-05" izz="6.125e-05" ixy="0" ixz="0" iyz="0"/>	
+      <inertia ixx="5.1458e-05" iyy="5.1458e-05" izz="6.125e-05" ixy="0" ixz="0" iyz="0"/>
     </inertial>
     <visual>
       <geometry>
@@ -625,7 +625,7 @@ Center of Mass:
     <inertial>
       <mass value="0.125164"/>
       <origin xyz="0.027 0 0"/>
-      <inertia ixx="6.39979e-06" iyy="8.88687e-05" izz="9.13751e-05" ixy="-3.26531e-06" ixz="1.23963e-05" iyz="2.07384e-05"/>	
+      <inertia ixx="6.39979e-06" iyy="8.88687e-05" izz="9.13751e-05" ixy="-3.26531e-06" ixz="1.23963e-05" iyz="2.07384e-05"/>
     </inertial>
     <visual>
       <geometry>
@@ -645,7 +645,7 @@ Center of Mass:
     <inertial>
       <mass value="0.131691"/>
       <origin xyz="0.039 0 0"/>
-      <inertia ixx="7.04217e-05" iyy="3.95744e-05" izz="6.61125e-05" ixy="-9.64342e-05" ixz="5.8796e-05" iyz="-3.62996e-05"/>	
+      <inertia ixx="7.04217e-05" iyy="3.95744e-05" izz="6.61125e-05" ixy="-9.64342e-05" ixz="5.8796e-05" iyz="-3.62996e-05"/>
     </inertial>
     <visual>
       <geometry>
@@ -685,7 +685,7 @@ Center of Mass:
     <inertial>
       <mass value="0.005"/>
       <origin xyz="0 0 0"/>
-      <inertia ixx="5.1458e-05" iyy="5.1458e-05" izz="6.125e-05" ixy="0" ixz="0" iyz="0"/>	
+      <inertia ixx="5.1458e-05" iyy="5.1458e-05" izz="6.125e-05" ixy="0" ixz="0" iyz="0"/>
     </inertial>
     <visual>
       <geometry>
@@ -705,7 +705,7 @@ Center of Mass:
     <inertial>
       <mass value="0.125164"/>
       <origin xyz="0.027 0 0"/>
-      <inertia ixx="6.39979e-06" iyy="8.88687e-05" izz="9.13751e-05" ixy="-3.26531e-06" ixz="1.23963e-05" iyz="2.07384e-05"/>	
+      <inertia ixx="6.39979e-06" iyy="8.88687e-05" izz="9.13751e-05" ixy="-3.26531e-06" ixz="1.23963e-05" iyz="2.07384e-05"/>
     </inertial>
     <visual>
       <geometry>
@@ -725,7 +725,7 @@ Center of Mass:
     <inertial>
       <mass value="0.131691"/>
       <origin xyz="0.039 0 0"/>
-      <inertia ixx="7.04217e-05" iyy="3.95744e-05" izz="6.61125e-05" ixy="-9.64342e-05" ixz="5.8796e-05" iyz="-3.62996e-05"/>	
+      <inertia ixx="7.04217e-05" iyy="3.95744e-05" izz="6.61125e-05" ixy="-9.64342e-05" ixz="5.8796e-05" iyz="-3.62996e-05"/>
     </inertial>
     <visual>
       <geometry>
@@ -969,5 +969,5 @@ Center of Mass:
     <child link="allegro_mount"/>
     <origin rpy="0 0 0" xyz="0 0 0"/>
   </joint>
-  
+
 </robot>
