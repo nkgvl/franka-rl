@@ -219,6 +219,7 @@ class FrankaPandaEnv:
 
         # Create cube asset
         cube_opts = gymapi.AssetOptions()
+        cube_opts.density = 200.0
         cube_asset = self.gym.create_box(self.sim, *([self.cube_size] * 3), cube_opts)
         cube_color = gymapi.Vec3(0.6, 0.1, 0.0)
 

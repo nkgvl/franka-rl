@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 
 import torch
 
@@ -6,59 +6,76 @@ import torch
 class MotionPrimitive:
     def __init__(
         self,
-        num_envs: int,
+        current_pos: torch.Tensor,
         num_angles: int = 12,
-        num_lengths: int = 3,
-        time_step: float = 1 / 60.0,
-        height: float = 0.03,
+        lengths: List[float] = [0.05, 0.1, 0.15],
+        goal_radius: float = 0.01,
     ):
-        self.num_envs: int = num_envs
+        self.target_pos: torch.Tensor = current_pos
         self.angles: torch.Tensor = torch.linspace(0, 2 * torch.pi, num_angles)
-        self.lengths: torch.Tensor = torch.linspace(0.2, 0.6, num_lengths)
-        self.height: float = height
-        self.time_step: float = time_step
+        self.lengths: torch.Tensor = torch.Tensor(lengths)
+        # self.current_angle_indices: torch.Tensor = torch.zeros(current_pos.shape[0], dtype=torch.long)
+        # self.current_length_indices: torch.Tensor = torch.zeros(current_pos.shape[0], dtype=torch.long)
+        self.goal_radius: float = goal_radius
 
-        # Initialize state for each environment
-        self.remaining_times: torch.Tensor = torch.zeros(num_envs)
-        self.current_angle_indices: torch.Tensor = torch.zeros(
-            num_envs, dtype=torch.long
-        )
-        self.current_length_indices: torch.Tensor = torch.zeros(
-            num_envs, dtype=torch.long
-        )
-        self.selected_primitives: List[List[Tuple[int, int]]] = [
-            [] for _ in range(num_envs)
-        ]
+    # Check if current position is within goal radius
+    def _is_goal(self, current_pos: torch.Tensor) -> torch.Tensor:
+        return torch.norm(current_pos - self.target_pos, dim=1) < self.goal_radius
 
-    def sample_actions(self) -> torch.Tensor:
-        # Update remaining time and sample new primitives if needed
-        self.remaining_times -= self.time_step
-        new_samples_mask: torch.Tensor = self.remaining_times <= 0
+    def _update_target(
+        self,
+        current_pos: torch.Tensor,
+        cube_pos_relative: torch.Tensor,
+        epsilon: float = 0.5,
+    ) -> bool:
+        is_goal = self._is_goal(current_pos)
+        num_goals = is_goal.sum()
 
-        if new_samples_mask.any():
-            self.current_angle_indices[new_samples_mask] = torch.randint(
-                0, len(self.angles), (new_samples_mask.sum(),)
+        if num_goals == 0:
+            return False
+        else:
+            relative_pos = cube_pos_relative[is_goal]
+            normalized_relative_pos = relative_pos / torch.norm(
+                relative_pos, dim=1, keepdim=True
             )
-            self.current_length_indices[new_samples_mask] = torch.randint(
-                0, len(self.lengths), (new_samples_mask.sum(),)
+
+            # Update target position of the primitives that reached the goal
+            if_random = torch.rand(num_goals) < epsilon
+
+            random_angle_indices = torch.randint(0, len(self.angles), (num_goals,))
+
+            expanded_x_angles = torch.cos(self.angles).unsqueeze(0).repeat(num_goals, 1)
+            expanded_y_angles = torch.sin(self.angles).unsqueeze(0).repeat(num_goals, 1)
+
+            expanded_normalized_relative_pos = normalized_relative_pos.unsqueeze(
+                1
+            ).repeat(1, len(self.angles), 1)
+
+            dx = expanded_x_angles - expanded_normalized_relative_pos[..., 0]
+            dy = expanded_y_angles - expanded_normalized_relative_pos[..., 1]
+
+            dist_sq = dx**2 + dy**2
+
+            closest_angle_indices = torch.argmin(dist_sq, dim=1)
+
+            angle_indices = torch.where(
+                if_random, random_angle_indices, closest_angle_indices
             )
-            self.remaining_times[new_samples_mask] = self.lengths[
-                self.current_length_indices[new_samples_mask]
-            ]
+            length_indices = torch.randint(0, len(self.lengths), (num_goals,))
 
-            # Log selected primitives
-            for env_idx in torch.where(new_samples_mask)[0]:
-                self.selected_primitives[env_idx].append(
-                    (
-                        self.current_angle_indices[env_idx].item(),
-                        self.current_length_indices[env_idx].item(),
-                    )
-                )
+            # self.current_angle_indices[is_goal] = angle_indices
+            # self.current_length_indices[is_goal] = length_indices
 
-        # Generate actions
-        angle: torch.Tensor = self.angles[self.current_angle_indices]
-        actions: torch.Tensor = torch.zeros((self.num_envs, 2))
-        actions[:, 0] = torch.cos(angle)
-        actions[:, 1] = torch.sin(angle)
+            angles = self.angles[angle_indices]
+            lengths = self.lengths[length_indices]
 
-        return actions
+            self.target_pos[is_goal] += lengths.unsqueeze(-1) * torch.stack(
+                [torch.cos(angles), torch.sin(angles)], dim=1
+            )
+            return True
+
+    def get_relative_goal(
+        self, current_pos: torch.Tensor, cube_pos_relative: torch.Tensor
+    ) -> torch.Tensor:
+        self._update_target(current_pos, cube_pos_relative)
+        return self.target_pos - current_pos
