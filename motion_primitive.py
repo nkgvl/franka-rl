@@ -11,7 +11,7 @@ class MotionPrimitive:
         lengths: List[float] = [0.05, 0.1, 0.15],
         goal_radius: float = 0.01,
     ):
-        self.target_pos: torch.Tensor = current_pos
+        self.target_pos: torch.Tensor = current_pos.clone()
         self.angles: torch.Tensor = torch.linspace(0, 2 * torch.pi, num_angles)
         self.lengths: torch.Tensor = torch.Tensor(lengths)
         # self.current_angle_indices: torch.Tensor = torch.zeros(current_pos.shape[0], dtype=torch.long)
