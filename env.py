@@ -27,48 +27,81 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import math
 from typing import Literal
+from logging import getLogger
 
 from isaacgym import gymapi, gymtorch
 from isaacgym.torch_utils import *
+
 
 
 class FrankaPandaEnv:
     def __init__(
         self,
         num_envs: int = 36,
-        physics_engine: int = gymapi.SIM_PHYSX,
         use_gpu: bool = True,
         use_gpu_pipeline: bool = False,
         num_threads: int = 1,
         compute_device_id: int = 0,
         graphics_device_id: int = 0,
+        headless: bool = False,
+        cube_size: float = 0.05,
     ):
         self.gym = gymapi.acquire_gym()
         # Set device information
         # self.device = torch.device(
         #     f"cuda:{compute_device_id}" if torch.cuda.is_available() else "cpu"
         # )
-        self.device = torch.device("cpu")
-
-        self.physics_engine = physics_engine
+        self.num_envs = num_envs
         self.use_gpu = use_gpu
-        self.use_gpu_pipeline = use_gpu_pipeline
         self.num_threads = num_threads
         self.compute_device_id = compute_device_id
         self.graphics_device_id = graphics_device_id
+        self.use_gpu_pipeline = use_gpu_pipeline
 
-        self.cube_size = 0.05
+        if use_gpu_pipeline:
+            if torch.cuda.is_available():
+                self.device = torch.device(f"cuda:{graphics_device_id}")
+                # Warn because currently not supported to use mass_matrix_tensor on GPU
+                print(
+                    "WARNING: Using GPU pipeline, but mass_matrix_tensor will be on CPU. "
+                    "This is currently not supported and will cause an error."
+                )
+            else:
+                print(
+                    "WARNING: Using GPU pipeline, but CUDA is not available. "
+                    "Falling back to CPU pipeline."
+                )
+                self.device = torch.device("cpu")
+        else:
+            self.device = torch.device("cpu")
+
+        self.cube_size = cube_size
         self.create_sim()
-
         if self.sim is None:
             print("*** Failed to create sim")
             quit()
+        self.gym.prepare_sim(self.sim)
+
 
         # Create viewer
-        self.viewer = self.gym.create_viewer(self.sim, gymapi.CameraProperties())
-        if self.viewer is None:
-            print("*** Failed to create viewer")
-            quit()
+        if headless:
+            self.viewer = None
+        else:
+            camera_props = gymapi.CameraProperties()
+            camera_props.width = 1280
+            camera_props.height = 720
+            camera_props.horizontal_fov = 60
+            self.viewer = self.gym.create_viewer(self.sim, camera_props)
+            if self.viewer is None:
+                print("*** Failed to create viewer")
+                quit()
+            self.gym.viewer_camera_look_at(
+                self.viewer,
+                self.envs[0],
+                gymapi.Vec3(0.0, -2.0, 1.0),
+                gymapi.Vec3(0.0, 0.0, 0.0),
+            )
+
 
         franka_handle = 0
         self.handles = {
@@ -103,7 +136,7 @@ class FrankaPandaEnv:
         ).unsqueeze(0)
 
         self.states = {}
-        self._update_states()
+        self.initialize_tensor_references()
 
         self._refresh()
 
@@ -116,29 +149,22 @@ class FrankaPandaEnv:
         sim_params.gravity.z = -9.81
         sim_params.dt = 1.0 / 60.0
         sim_params.substeps = 2
-        if self.physics_engine == gymapi.SIM_FLEX:
-            sim_params.flex.solver_type = 5
-            sim_params.flex.num_outer_iterations = 4
-            sim_params.flex.num_inner_iterations = 15
-            sim_params.flex.relaxation = 0.75
-            sim_params.flex.warm_start = 0.8
-        elif self.physics_engine == gymapi.SIM_PHYSX:
-            sim_params.physx.solver_type = 1
-            sim_params.physx.num_position_iterations = 4
-            sim_params.physx.num_velocity_iterations = 1
-            sim_params.physx.num_threads = self.num_threads
-            sim_params.physx.use_gpu = self.use_gpu
+        sim_params.physx.solver_type = 1
+        sim_params.physx.num_position_iterations = 4
+        sim_params.physx.num_velocity_iterations = 1
+        sim_params.physx.num_threads = self.num_threads
+        sim_params.physx.use_gpu = self.use_gpu
 
         sim_params.use_gpu_pipeline = self.use_gpu_pipeline
 
         self.sim = self.gym.create_sim(
             self.compute_device_id,
             self.graphics_device_id,
-            self.physics_engine,
+            gymapi.SIM_PHYSX,
             sim_params,
         )
         self._create_ground_plane()
-        self._create_envs(36, 1.0)
+        self._create_envs(self.num_envs, 1.0)
 
     def _create_ground_plane(self):
         plane_params = gymapi.PlaneParams()
@@ -262,59 +288,76 @@ class FrankaPandaEnv:
 
         self._update_states()
 
-    def _update_states(self):
+    def initialize_tensor_references(self):
+        """Initialize references to tensors that will be updated every step."""
+        # Initialize Franka handle
+        franka_handle=0
+        
+        # Acquire actor root state tensor
         _actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
-        _root_state = gymtorch.wrap_tensor(_actor_root_state_tensor).view(
+        self._root_state = gymtorch.wrap_tensor(_actor_root_state_tensor).view(
             self.num_envs, -1, 13
         )
-        _cube_state = _root_state[:, self._cube_id, :]
-        _dof_state = gymtorch.wrap_tensor(
+        
+        # Get cube state
+        self._cube_state = self._root_state[:, self._cube_id, :]
+        
+        # Acquire DOF state tensor
+        self._dof_state = gymtorch.wrap_tensor(
             self.gym.acquire_dof_state_tensor(self.sim)
         ).view(self.num_envs, -1, 2)
-        _rigid_body_state = gymtorch.wrap_tensor(
+        
+        # Get rigid body state
+        self._rigid_body_state = gymtorch.wrap_tensor(
             self.gym.acquire_rigid_body_state_tensor(self.sim)
         ).view(self.num_envs, -1, 13)
-        _q = _dof_state[..., 0]
-        _eef_state = _rigid_body_state[:, self.handles["grip_site"], :]
-        _eef_lf_state = _rigid_body_state[:, self.handles["leftfinger_tip"], :]
-        _eef_rf_state = _rigid_body_state[:, self.handles["rightfinger_tip"], :]
+        
+        # Get values of each state
+        self._q = self._dof_state[:,:, 0]
+        self._qd = self._dof_state[:,:, 1]
+        self._eef_state = self._rigid_body_state[:, self.handles["grip_site"], :]
+        self._eef_lf_state = self._rigid_body_state[:, self.handles["leftfinger_tip"], :]
+        self._eef_rf_state = self._rigid_body_state[:, self.handles["rightfinger_tip"], :]
+        
+        # Acquire Jacobian tensor
+        _jacobian = self.gym.acquire_jacobian_tensor(self.sim, "franka")
+        jacobian = gymtorch.wrap_tensor(_jacobian)
+        
+        # Get Jacobian for end effector
+        hand_joint_index = self.gym.get_actor_joint_dict(self.envs[0], franka_handle)['panda_hand_joint']
+        self._j_eef = jacobian[:, hand_joint_index, :, :7]
+        
+        # Acquire mass matrix tensor
+        _massmatrix = self.gym.acquire_mass_matrix_tensor(self.sim, "franka")
+        mm = gymtorch.wrap_tensor(_massmatrix)
+        self._mm = mm[:, :7, :7]
+
+    def _update_states(self):
         self.states.update(
             {
                 # Franka
-                "q": _q[:, :],
-                "q_gripper": _q[:, -2:],
-                "eef_pos": _eef_state[:, :3],
-                "eef_quat": _eef_state[:, 3:7],
-                "eef_vel": _eef_state[:, 7:],
-                "eef_lf_pos": _eef_lf_state[:, :3],
-                "eef_rf_pos": _eef_rf_state[:, :3],
+                "q": self._q[:, :],
+                "q_gripper": self._q[:, -2:],
+                "eef_pos": self._eef_state[:, :3],
+                "eef_quat": self._eef_state[:, 3:7],
+                "eef_vel": self._eef_state[:, 7:],
+                "eef_lf_pos": self._eef_lf_state[:, :3],
+                "eef_rf_pos": self._eef_rf_state[:, :3],
                 # Cubes
-                "cube_quat": _cube_state[:, 3:7],
-                "cube_pos": _cube_state[:, :3],
-                "cube_pos_relative": _cube_state[:, :3] - _eef_state[:, :3],
+                "cube_quat": self._cube_state[:, 3:7],
+                "cube_pos": self._cube_state[:, :3],
+                "cube_pos_relative": self._cube_state[:, :3] - self._eef_state[:, :3],
             }
         )
 
-    def _compute_osc_torques(self, dpose):
-        dof_state_tensor = gymtorch.wrap_tensor(
-            self.gym.acquire_dof_state_tensor(self.sim)
-        ).view(self.num_envs, self.num_franka_dofs, 2)
-        mm = gymtorch.wrap_tensor(
-            self.gym.acquire_mass_matrix_tensor(self.sim, "franka")
-        )
-        jacobian = gymtorch.wrap_tensor(
-            self.gym.acquire_jacobian_tensor(self.sim, "franka")
-        )
-        hand_joint_index = self.gym.get_actor_joint_dict(
-            self.envs[0], self.franka_handles[0]
-        )["panda_hand_joint"]
 
-        mm = mm[:, :7, :7]
-        j_eef = jacobian[:, hand_joint_index, :, :7]
+    def _compute_osc_torques(self, dpose):
+        mm = self._mm
+        j_eef = self._j_eef
 
         # Solve for Operational Space Control # Paper: khatib.stanford.edu/publications/pdfs/Khatib_1987_RA.pdf
         # Helpful resource: studywolf.wordpress.com/2013/09/17/robot-control-4-operation-space-control/
-        q, qd = dof_state_tensor[:, :7, 0], dof_state_tensor[:, :7, 1]
+        q, qd = self._q[:, :7], self._qd[:, :7]
         mm_inv = torch.inverse(mm)
         m_eef_inv = j_eef @ mm_inv @ torch.transpose(j_eef, 1, 2)
         m_eef = torch.inverse(m_eef_inv)
@@ -341,15 +384,10 @@ class FrankaPandaEnv:
         ) @ u_null
 
         # Clip the values to be within valid effort range
-        franka_dof_props = self.gym.get_actor_dof_properties(
-            self.envs[0], self.franka_handles[0]
-        )
-        franka_effort_limits = to_torch(franka_dof_props["effort"], device=self.device)
-
         u = tensor_clamp(
             u.squeeze(-1),
-            -franka_effort_limits[:7].unsqueeze(0),
-            franka_effort_limits[:7].unsqueeze(0),
+            -self._franka_effort_limits[:7].unsqueeze(0),
+            self._franka_effort_limits[:7].unsqueeze(0),
         )
 
         return u
@@ -393,11 +431,12 @@ class FrankaPandaEnv:
         self.gym.fetch_results(self.sim, True)
 
     def step_rendering(self):
-        self.gym.step_graphics(self.sim)
-        self.gym.draw_viewer(self.viewer, self.sim, False)
-        self.gym.sync_frame_time(self.sim)
+        if self.viewer is not None:
+            self.gym.step_graphics(self.sim)
+            self.gym.draw_viewer(self.viewer, self.sim, False)
+            self.gym.sync_frame_time(self.sim)
 
-    def reset_pose(self, pose: Literal["default", "middle"] = "default"):
+    def reset_pose(self, pose: Literal["default", "middle"] = "default", indices: Optional[List[int]] = None):
         # get joint limits and ranges for Franka
         franka_dof_props = self.gym.get_actor_dof_properties(
             self.envs[0], self.franka_handles[0]
@@ -407,7 +446,10 @@ class FrankaPandaEnv:
         franka_upper_limits - franka_lower_limits
         franka_mids = 0.5 * (franka_upper_limits + franka_lower_limits)
 
-        for i in range(self.num_envs):
+        if indices is None:
+            indices = range(self.num_envs)
+            
+        for i in indices:
             # Set updated stiffness and damping properties
             self.gym.set_actor_dof_properties(
                 self.envs[i], self.franka_handles[i], franka_dof_props
