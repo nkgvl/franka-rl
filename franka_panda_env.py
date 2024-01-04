@@ -33,6 +33,8 @@ from isaacgym.torch_utils import *
 
 
 class FrankaPandaEnv:
+    """Franka Panda environment."""
+
     def __init__(
         self,
         num_envs: int = 36,
@@ -44,6 +46,18 @@ class FrankaPandaEnv:
         headless: bool = False,
         cube_size: float = 0.05,
     ):
+        """Initialize the Franka Panda environment.
+
+        Args:
+            num_envs (int, optional): Number of environments to create. Defaults to 36.
+            use_gpu (bool, optional): Whether to use GPU. Defaults to True.
+            use_gpu_pipeline (bool, optional): Whether to use GPU pipeline. Defaults to False.
+            num_threads (int, optional): Number of threads. Defaults to 1.
+            compute_device_id (int, optional): Compute device ID. Defaults to 0.
+            graphics_device_id (int, optional): Graphics device ID. Defaults to 0.
+            headless (bool, optional): Whether to run in headless mode. Defaults to False.
+            cube_size (float, optional): Size of the cube. Defaults to 0.05.
+        """
         self.gym = gymapi.acquire_gym()
         self.num_envs = num_envs
         self.use_gpu = use_gpu
@@ -167,6 +181,7 @@ class FrankaPandaEnv:
         self._refresh()
 
     def create_sim(self):
+        """Create the simulation."""
         # configure sim
         sim_params = gymapi.SimParams()
         sim_params.up_axis = gymapi.UP_AXIS_Z
@@ -193,11 +208,18 @@ class FrankaPandaEnv:
         self._create_envs(self.num_envs, 1.0)
 
     def _create_ground_plane(self):
+        """Create the ground plane."""
         plane_params = gymapi.PlaneParams()
         plane_params.normal = gymapi.Vec3(0.0, 0.0, 1.0)
         self.gym.add_ground(self.sim, plane_params)
 
     def _create_envs(self, num_envs: int, spacing: float):
+        """Create the environments.
+
+        Args:
+            num_envs (int): Number of environments to create.
+            spacing (float): Spacing between the environments.
+        """
         # Load franka asset
         asset_root = "assets"
         franka_asset_file = "urdf/franka_description/robots/franka_panda_gripper.urdf"
@@ -303,6 +325,7 @@ class FrankaPandaEnv:
             )
 
     def _refresh(self):
+        """Refresh the state of the simulation."""
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_dof_state_tensor(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
@@ -376,6 +399,7 @@ class FrankaPandaEnv:
         ).view(self.num_envs, -1)
 
     def _update_states(self):
+        """Update the states of the simulation."""
         self.states.update(
             {
                 # Franka
@@ -394,6 +418,11 @@ class FrankaPandaEnv:
         )
 
     def _compute_osc_torques(self, dpose):
+        """Compute the operational space control torques.
+
+        Args:
+            dpose (torch.Tensor): Change in pose. The shape is (n, 6), where n is the number of environments and 6 represents the change in position and orientation.
+        """
         mm = self._mm
         j_eef = self._j_eef
 
@@ -435,6 +464,11 @@ class FrankaPandaEnv:
         return u
 
     def pre_physics_step(self, actions):
+        """Apply actions to the simulation.
+
+        Args:
+            actions (torch.Tensor): Actions to apply to the simulation. The shape is (n, 7), where n is the number of environments and 7 represents the joint torques.
+        """
         actions = actions.clone().detach().to(self.device)
 
         # Split arm and gripper actions
@@ -470,13 +504,16 @@ class FrankaPandaEnv:
         )
 
     def step_physics(self):
+        """Step the simulation forward."""
         self.gym.simulate(self.sim)
         self.gym.fetch_results(self.sim, True)
 
     def post_physics_step(self):
+        """Update the state of the simulation."""
         self._refresh()
 
     def step_rendering(self):
+        """Render the simulation."""
         if self.viewer is not None:
             self.gym.step_graphics(self.sim)
             self.gym.draw_viewer(self.viewer, self.sim, False)
@@ -487,6 +524,12 @@ class FrankaPandaEnv:
         pose: Literal["default", "middle"] = "default",
         env_ids: Optional[List[int]] = None,
     ):
+        """Reset the pose of the Franka arm.
+
+        Args:
+            pose (Literal["default", "middle"], optional): Pose to reset to. Defaults to "default".
+            env_ids (Optional[List[int]], optional): List of environment indices to reset. Defaults to None.
+        """
         # get joint limits and ranges for Franka
         franka_mids = 0.5 * (
             self.franka_dof_upper_limits + self.franka_dof_lower_limits
@@ -532,6 +575,12 @@ class FrankaPandaEnv:
         )
 
     def reset_cube(self, env_ids: Optional[List[int]] = None, max_radius: float = 0.2):
+        """Reset the pose of the cube.
+
+        Args:
+            env_ids (Optional[List[int]], optional): List of environment indices to reset. Defaults to None.
+            max_radius (float, optional): Maximum radius of the cube from the origin. Defaults to 0.2.
+        """
         # To prevent collisions
         min_radius = self.cube_size * math.sqrt(2)
 
@@ -567,6 +616,7 @@ class FrankaPandaEnv:
         )
 
     def destroy(self):
+        """Destroy the simulation."""
         self.gym.destroy_viewer(self.viewer)
         self.gym.destroy_sim(self.sim)
 
