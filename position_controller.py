@@ -58,13 +58,18 @@ class PositionController:
             quat_conjugate(current_quat),
         )
         euler_angles = get_euler_xyz(diff_quat)
-        gain_rot = 2.0
         dpose[:, 3], dpose[:, 4], dpose[:, 5] = (
-            gain_rot * normalize_angle(euler_angles[0]),
-            gain_rot * normalize_angle(euler_angles[1]),
-            gain_rot * normalize_angle(euler_angles[2]),
+            normalize_angle(euler_angles[0]),
+            normalize_angle(euler_angles[1]),
+            normalize_angle(euler_angles[2]),
         )
         dpose[:, -1] = -1
+
+        additional_gain_rot = 2.0
+        additional_gain_z = 2.0
+
+        dpose[:, 3:6] *= additional_gain_rot
+        dpose[:, 2] *= additional_gain_z
 
         self.env.pre_physics_step(dpose * self.gain)
 
