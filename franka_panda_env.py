@@ -32,6 +32,26 @@ from isaacgym import gymapi, gymtorch
 from isaacgym.torch_utils import *
 
 
+def get_center_env_index(num_envs: int, num_per_row: int) -> int:
+    """Get the index of the center environment.
+
+    Args:
+        num_envs (int): Number of environments.
+        num_per_row (int): Number of environments per row.
+
+    Returns:
+        int: Index of the center environment.
+    """
+    num_rows = math.ceil(num_envs / num_per_row)
+
+    center_row_index = num_rows // 2
+    center_column_index = num_per_row // 2
+
+    center_env_index = center_row_index * num_per_row + center_column_index
+
+    return center_env_index
+
+
 class FrankaPandaEnv:
     """Franka Panda environment."""
 
@@ -138,10 +158,11 @@ class FrankaPandaEnv:
             if self.viewer is None:
                 print("*** Failed to create viewer")
                 quit()
+            center_env_index = get_center_env_index(num_envs, int(math.sqrt(num_envs)))
             self.gym.viewer_camera_look_at(
                 self.viewer,
-                self.envs[0],
-                gymapi.Vec3(0.0, -2.0, 1.0),
+                self.envs[center_env_index],
+                gymapi.Vec3(6.0, -6.0, 3.0),
                 gymapi.Vec3(0.0, 0.0, 0.0),
             )
 
@@ -518,6 +539,22 @@ class FrankaPandaEnv:
             self.gym.step_graphics(self.sim)
             self.gym.draw_viewer(self.viewer, self.sim, False)
             self.gym.sync_frame_time(self.sim)
+
+    def reset_env(
+        self,
+        env_ids: Optional[List[int]] = None,
+        pose: Literal["default", "middle"] = "default",
+        max_cube_radius: float = 0.2,
+    ):
+        """Reset the pose of the Franka arm and cube.
+
+        Args:
+            env_ids (Optional[List[int]], optional): List of environment indices to reset. Defaults to None.
+            pose (Literal["default", "middle"], optional): Pose to reset to. Defaults to "default".
+            max_cube_radius (float, optional): Maximum radius of the cube from the origin. Defaults to 0.2.
+        """
+        self.reset_pose(pose, env_ids)
+        self.reset_cube(env_ids, max_cube_radius)
 
     def reset_pose(
         self,
