@@ -287,10 +287,15 @@ class MotionPrimitiveController:
 
         # Save trajectory
         self.trajectories[index]["states"].append(
-            {key: states_dict[key][index] for key in states_dict.keys()}
+            {
+                key: states_dict[key][index].clone().detach()
+                for key in states_dict.keys()
+            }
         )
-        self.trajectories[index]["actions"].append(self.current_primitives[index])
-        self.trajectories[index]["dones"].append(self.dones[index])
+        self.trajectories[index]["actions"].append(
+            self.current_primitives[index].clone().detach()
+        )
+        self.trajectories[index]["dones"].append(self.dones[index].clone().detach())
 
     def save_trajectories(self, filename: str, directory: str = "trajectories") -> None:
         """Save the trajectories to a file.
