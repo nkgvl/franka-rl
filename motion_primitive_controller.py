@@ -1,4 +1,5 @@
-from typing import List
+import os
+from typing import Dict, List
 
 import torch
 
@@ -67,7 +68,9 @@ class MotionPrimitiveController:
         self.goal_radius = goal_radius
         self.moving_threshold = moving_threshold
 
-        self.trajectories = [[] for _ in range(num_envs)]  # Added this line
+        self.trajectories = [
+            {"states": [], "actions": [], "dones": []} for _ in range(self.num_envs)
+        ]
 
     @property
     def current_positions(self):
@@ -145,6 +148,7 @@ class MotionPrimitiveController:
         current_positions: torch.Tensor,
         current_velocities: torch.Tensor,
         cube_pos_relative: torch.Tensor,
+        states_dict: Dict[str, torch.Tensor],
         epsilon: float = 0.5,
         force: bool = False,
     ) -> List[int]:
@@ -160,7 +164,12 @@ class MotionPrimitiveController:
             List[int]: List of indices of the environments that finished the episode.
         """
         self._update_targets(
-            current_positions, current_velocities, cube_pos_relative, epsilon, force
+            current_positions,
+            current_velocities,
+            cube_pos_relative,
+            states_dict,
+            epsilon,
+            force,
         )
 
         return self.dones.nonzero(as_tuple=True)[0].detach().cpu().numpy().tolist()
@@ -195,6 +204,7 @@ class MotionPrimitiveController:
         current_positions: torch.Tensor,
         current_velocities: torch.Tensor,
         cube_pos_relative: torch.Tensor,
+        states_dict: Dict[str, torch.Tensor],
         epsilon: float,
         force: bool = False,
     ) -> None:
@@ -204,6 +214,7 @@ class MotionPrimitiveController:
             current_positions (torch.Tensor): Current positions of the end effectors. The shape is (n, 3), where n is the number of environments and 3 represents the x, y and z coordinates.
             current_velocities (torch.Tensor): Current velocities of the end effectors. The shape is (n, 3), where n is the number of environments and 3 represents the x, y and z velocities.
             cube_pos_relative (torch.Tensor): Relative position of the cube. The shape is (n, 3), where n is the number of environments and 3 represents the x, y and z coordinates.
+            states_dict (Dict[str, torch.Tensor]): Dictionary of states.
             epsilon (float): Probability of choosing a random primitive.
             force (bool, optional): Force to update the motion primitives. Defaults to False.
 
@@ -218,7 +229,7 @@ class MotionPrimitiveController:
             self.dones[is_out_of_bounds] = True
             indices = (is_goal | is_out_of_bounds).nonzero(as_tuple=True)[0]
         for i in indices:
-            self._update_primitive(i, cube_pos_relative[i], epsilon)
+            self._update_primitive(i, cube_pos_relative[i], states_dict, epsilon)
             self._update_target(i, current_positions[i])
 
     def _update_target(
@@ -237,13 +248,18 @@ class MotionPrimitiveController:
         )
 
     def _update_primitive(
-        self, index: int, cube_pos_relative: torch.Tensor, epsilon: float
+        self,
+        index: int,
+        cube_pos_relative: torch.Tensor,
+        states_dict: Dict[str, torch.Tensor],
+        epsilon: float,
     ) -> None:
-        """Update the motion primitive.
+        """Update the motion primitive. It is called when the end effector reaches the goal or goes out of bounds.
 
         Args:
             index (int): Index of the environment.
-            cube_pos_relative (torch.Tensor): Relative position of the cube. The shape is (3, ) where 3 represents the x, y and z coordinates.
+            cube_pos_relative (torch.Tensor): Relative position of the cube. The shape is (3, ) where 3 represents the x, y and z coordinates.s
+            states_dict (Dict[str, torch.Tensor]): Dictionary of states.
             epsilon (float): Probability of choosing a random primitive.
         """
         if torch.rand(1) < epsilon:
@@ -268,10 +284,29 @@ class MotionPrimitiveController:
                     self.height,
                 ]
             )
-        self.trajectories[index].append(
-            (
-                self.current_positions[index].clone(),  # state
-                self.current_primitives[index].clone(),  # action
-                self.dones[index].clone(),  # done
-            )
+
+        # Save trajectory
+        self.trajectories[index]["states"].append(
+            {key: states_dict[key][index] for key in states_dict.keys()}
         )
+        self.trajectories[index]["actions"].append(self.current_primitives[index])
+        self.trajectories[index]["dones"].append(self.dones[index])
+
+    def save_trajectories(self, filename: str, directory: str = "trajectories") -> None:
+        """Save the trajectories to a file.
+
+        Args:
+            filename (str): Filename.
+            directory (str, optional): Directory. Defaults to "trajectories".
+        """
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        torch.save(self.trajectories, os.path.join(directory, filename))
+
+    def clear_trajectories(self) -> None:
+        """Clear the trajectories."""
+        self.trajectories = [
+            {"states": [], "actions": [], "dones": []} for _ in range(self.num_envs)
+        ]
